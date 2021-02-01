@@ -15,6 +15,7 @@
 package gormadapter
 
 import (
+	"context"
 	"log"
 	"testing"
 
@@ -99,6 +100,28 @@ func initAdapterWithGormInstance(t *testing.T, db *gorm.DB) *Adapter {
 	// Create an adapter
 	a, _ := NewAdapterByDB(db)
 	// Initialize some policy in DB.
+	initPolicy(t, a)
+	// Now the DB has policy, so we can provide a normal use case.
+	// Note: you don't need to look at the above code
+	// if you already have a working DB with policy inside.
+
+	return a
+}
+
+func initAdapterWithGormInstanceCustomTable(t *testing.T, db *gorm.DB) *Adapter {
+	type CasbinRule struct {
+		ID    uint   `gorm:"primaryKey;autoIncrement"`
+		PType string `gorm:"size:255;uniqueIndex:unique_index"`
+		V0    string `gorm:"size:255;uniqueIndex:unique_index"`
+		V1    string `gorm:"size:255;uniqueIndex:unique_index"`
+		V2    string `gorm:"size:255;uniqueIndex:unique_index"`
+		V3    string `gorm:"size:255;uniqueIndex:unique_index"`
+		V4    string `gorm:"size:255;uniqueIndex:unique_index"`
+		V5    string `gorm:"size:255;uniqueIndex:unique_index"`
+	}
+
+	a, _ := NewAdapterByDB(db.WithContext(WithCustomTable(context.Background(), &CasbinRule{})))
+
 	initPolicy(t, a)
 	// Now the DB has policy, so we can provide a normal use case.
 	// Note: you don't need to look at the above code
@@ -235,6 +258,10 @@ func TestAdapters(t *testing.T) {
 		panic(err)
 	}
 	a = initAdapterWithGormInstance(t, db)
+	testAutoSave(t, a)
+	testSaveLoad(t, a)
+
+	a = initAdapterWithGormInstanceCustomTable(t, db)
 	testAutoSave(t, a)
 	testSaveLoad(t, a)
 

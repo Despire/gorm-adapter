@@ -15,6 +15,7 @@
 package gormadapter
 
 import (
+	"context"
 	"errors"
 	"runtime"
 	"strings"
@@ -76,6 +77,21 @@ func finalizer(a *Adapter) {
 	if err != nil {
 		panic(err)
 	}
+}
+
+type customTableKey struct{}
+
+func WithCustomTable(ctx context.Context, table interface{}) context.Context {
+	return context.WithValue(ctx, customTableKey{}, table)
+}
+
+func customTable(ctx context.Context) (interface{}, bool) {
+	table := ctx.Value(customTableKey{})
+	if table == nil {
+		return nil, false
+	}
+
+	return table, true
 }
 
 // NewAdapter is the constructor for Adapter.
@@ -164,7 +180,7 @@ func NewAdapterByDBUseTableName(db *gorm.DB, prefix string, tableName string) (*
 		tableName:   tableName,
 	}
 
-	a.db = db.Scopes(a.casbinRuleTable()).Session(&gorm.Session{})
+	a.db = db.Scopes(a.casbinRuleTable()).Session(&gorm.Session{Context: db.Statement.Context})
 	err := a.createTable()
 	if err != nil {
 		return nil, err
@@ -280,11 +296,21 @@ func (a *Adapter) casbinRuleTable() func(db *gorm.DB) *gorm.DB {
 }
 
 func (a *Adapter) createTable() error {
-	return a.db.AutoMigrate(a.getTableInstance())
+	t, ok := customTable(a.db.Statement.Context)
+	if !ok {
+		return a.db.AutoMigrate(a.getTableInstance())
+	}
+
+	return a.db.AutoMigrate(t)
 }
 
 func (a *Adapter) dropTable() error {
-	return a.db.Migrator().DropTable(a.getTableInstance())
+	t, ok := customTable(a.db.Statement.Context)
+	if !ok {
+		return a.db.Migrator().DropTable(a.getTableInstance())
+	}
+
+	return a.db.AutoMigrate(t)
 }
 
 func loadPolicyLine(line CasbinRule, model model.Model) {
